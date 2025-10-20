@@ -84,7 +84,7 @@ def get_ytstream(imdb_id):
         return {'streams': []}
     #return {'trailers' : [{ "source": res['items'][0]['id']['videoId'], "type": "Trailer" }]}
 
-def get_ytmeta(imdb_id):
+def get_ytmeta(type, imdb_id):
     # Fetch the YT metadata from the cache
     try:
         yt_meta_data = get_yt_metadata()
@@ -94,7 +94,10 @@ def get_ytmeta(imdb_id):
         normalized_id = 'ott' + imdb_id_clean[2:]
         
         # Get the base metadata from cinemeta
-        meta = requests.get(f"https://cinemeta-live.strem.io/meta/movie/{imdb_id_clean}.json").json()
+        if type == 'movie':
+            meta = requests.get(f"https://cinemeta-live.strem.io/meta/movie/{imdb_id_clean}.json").json()
+        elif type == 'series':
+            meta = requests.get(f"https://cinemeta-live.strem.io/meta/series/{imdb_id_clean}.json").json()
         
         # Check if the imdb_id exists in the YT metadata
         if normalized_id in yt_meta_data:
@@ -230,7 +233,7 @@ def addon_manifest_ytrailer():
 def addon_meta(type, id):
     if type not in MANIFEST['types']:
         abort(404)
-    return respond_with(get_ytmeta(id))
+    return respond_with(get_ytmeta(type, id))
 
 @app.route(f'/stream/<type>/<id>.json')
 async def addon_stream_all(type, id):
@@ -252,4 +255,17 @@ def addon_stream_yt(type, id):
     return respond_with(get_ytstream(id))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    import uvicorn
+    import os
+    
+    # Check if running in development or production
+    debug_mode = os.getenv('DEBUG', 'True').lower() == 'true'
+    debug_mode = True # Force production mode
+    if debug_mode:
+        # Development mode - single process with auto-reload
+        print("Running in development mode with auto-reload")
+        uvicorn.run("main:app", host="127.0.0.1", port=5000, reload=True)
+    else:
+        # Production mode - multiple workers for parallel requests
+        print("Running in production mode with multiple workers")
+        uvicorn.run("main:app", host="0.0.0.0", port=5000, workers=4)
