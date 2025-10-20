@@ -1,6 +1,6 @@
 {
     "id": "org.stremio.PikPak",
-    "version": "1.2.5",
+    "version": "1.2.7",
     "name": "PikPak",
     "description": "Addon which provides Movies and Series",
     "types": [
