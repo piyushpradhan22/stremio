@@ -1,0 +1,23 @@
+{
+    "id": "org.stremio.YTrailer",
+    "version": "0.0.2",
+    "name": "YTrailer",
+    "description": "Addon which provides Trailer",
+    "types": [
+        "movie",
+        "series"
+    ],
+    "catalogs": [],
+    "resources": [
+        {
+            "name": "stream",
+            "types": [
+                "movie",
+                "series"
+            ],
+            "idPrefixes": [
+                "tt"
+            ]
+        }
+    ]
+}

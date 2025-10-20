@@ -1,0 +1,134 @@
+{
+    "id": "org.stremio.PikPak",
+    "version": "1.2.5",
+    "name": "PikPak",
+    "description": "Addon which provides Movies and Series",
+    "types": [
+        "movie",
+        "series"
+    ],
+    "catalogs": [
+        {
+            "name": "Top Rated",
+            "type": "Indian",
+            "id": "Top Rated",
+            "extra": [
+                {
+                    "name": "skip",
+                    "isRequired": false
+                }
+            ]
+        },
+        {
+            "name": "Movies",
+            "type": "Indian",
+            "id": "Movies",
+            "extra": [
+                {
+                    "name": "skip",
+                    "isRequired": false
+                }
+            ]
+        },
+        {
+            "name": "Series",
+            "type": "Indian",
+            "id": "Series",
+            "extra": [
+                {
+                    "name": "skip",
+                    "isRequired": false
+                }
+            ]
+        },
+        {
+            "name": "Netflix India",
+            "type": "Indian",
+            "id": "Netflix India",
+            "extra": [
+                {
+                    "name": "skip",
+                    "isRequired": false
+                }
+            ]
+        },
+        {
+            "name": "Prime Video",
+            "type": "Indian",
+            "id": "Prime Video",
+            "extra": [
+                {
+                    "name": "skip",
+                    "isRequired": false
+                }
+            ]
+        },
+        {
+            "name": "Disney Plus Hotstar",
+            "type": "Indian",
+            "id": "Disney Plus Hotstar",
+            "extra": [
+                {
+                    "name": "skip",
+                    "isRequired": false
+                }
+            ]
+        },
+        {
+            "name": "Jio Cinema",
+            "type": "Indian",
+            "id": "Jio Cinema",
+            "extra": [
+                {
+                    "name": "skip",
+                    "isRequired": false
+                }
+            ]
+        },
+        {
+            "name": "Zee5",
+            "type": "Indian",
+            "id": "Zee5",
+            "extra": [
+                {
+                    "name": "skip",
+                    "isRequired": false
+                }
+            ]
+        },
+        {
+            "name": "Sony Liv",
+            "type": "Indian",
+            "id": "Sony Liv",
+            "extra": [
+                {
+                    "name": "skip",
+                    "isRequired": false
+                }
+            ]
+        }
+    ],
+    "resources": [
+        "catalog",
+        {
+            "name": "meta",
+            "types": [
+                "movie",
+                "series"
+            ],
+            "idPrefixes": [
+                "ott"
+            ]
+        },
+        {
+            "name": "stream",
+            "types": [
+                "movie",
+                "series"
+            ],
+            "idPrefixes": [
+                "tt"
+            ]
+        }
+    ]
+}

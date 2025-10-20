@@ -1,0 +1,56 @@
+<html>
+
+<head>
+    <title> Choose your add-ons to add to stremio</title>
+    <style>
+        body {
+            height: 200px;
+            position: relative;
+            background: url('/static/background.jpg');
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-position: center;
+            margin: 10;
+            position: absolute;
+            top: 20%;
+            left: 50%;
+            -ms-transform: translate(-50%, -50%);
+            transform: translate(-50%, -50%);
+        }
+
+        ul {
+            font-size: 40px;
+            color: yellowgreen;
+            line-height: 50px;
+        }
+
+        divs {
+            font-size: 50px;
+            color: black;
+            background-color: transparent;
+
+        }
+
+        button {
+            font-size: 30px;
+            color: teal;
+            background-color: transparent;
+        }
+    </style>
+</head>
+
+<divs> Choose your add-ons to add to stremio</divs>
+<divs> ===========================</divs>
+<div class="container">
+    <a href="{{stremio_uri}}manifest.json">
+        <button>INSTALL Stremio Addon - PRADHAN</button>
+    </a>
+    <a href="{{stremio_uri}}tor/manifest.json">
+        <button>INSTALL Stremio Addon - HF_TOR</button>
+    </a>
+    <a href="{{stremio_uri}}yt/manifest.json">
+        <button>INSTALL Stremio Addon - YTrailer</button>
+    </a>
+</div>
+
+</html>

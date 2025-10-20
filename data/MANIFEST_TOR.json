@@ -1,0 +1,36 @@
+{
+    "id": "org.stremio.Torr",
+    "version": "0.0.1",
+    "name": "Torr",
+    "description": "Addon which provides Movies and Series with HF",
+    "types": [
+        "movie",
+        "series"
+    ],
+    "catalogs": [
+        {
+            "name": "TORRENT",
+            "type": "Indian",
+            "id": "TORRENT",
+            "extra": [
+                {
+                    "name": "skip",
+                    "isRequired": false
+                }
+            ]
+        }
+    ],
+    "resources": [
+        "catalog",
+        {
+            "name": "stream",
+            "types": [
+                "movie",
+                "series"
+            ],
+            "idPrefixes": [
+                "tt"
+            ]
+        }
+    ]
+}

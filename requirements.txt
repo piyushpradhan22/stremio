@@ -1,0 +1,13 @@
+requests
+PikPakAPI
+quart
+pandas
+SQLAlchemy
+psycopg2-binary
+gunicorn
+uvicorn[standard]
+gevent
+parse-torrent-name
+google-api-python-client
+PyMovieDb
+lxml[html_clean]
