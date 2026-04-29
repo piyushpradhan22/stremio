@@ -417,7 +417,7 @@ class pradhanStreams:
             #quota = await self.get_quota_info_v1(pikpak_client)
             #free_space = (int(quota['quota']['limit']) - int(quota['quota']['usage']))/ (1024**2)
             #pikpak_client.free_space = free_space
-            data.loc[data.username == uname, 'login_time'] = time.time()
+            data.loc[data.username == uname, 'login_time'] = str(time.time())
         return data
     
     async def get_stream_using_db(self,data):
