@@ -75,6 +75,17 @@
             ]
         },
         {
+            "name": "Jio Hotstar",
+            "type": "Indian",
+            "id": "Jio Hotstar",
+            "extra": [
+                {
+                    "name": "skip",
+                    "isRequired": false
+                }
+            ]
+        },
+        {
             "name": "Jio Cinema",
             "type": "Indian",
             "id": "Jio Cinema",
