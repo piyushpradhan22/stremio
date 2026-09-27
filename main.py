@@ -127,7 +127,8 @@ def get_ytmeta(type, imdb_id):
 def get_catalog_tor():
     CATALOG_TOR = {}
     CATALOG_TOR["TORRENT"] = [{"id": x['imdb_id'].split(":")[0], "type" : "series" if ":" in x['imdb_id'] else "movie",
-                           "poster" : f"https://live.metahub.space/poster/medium/{x['imdb_id'].split(":")[0]}/img"}
+                           "poster" : f"https://live.metahub.space/poster/medium/{x['imdb_id'].split(":")[0]}/img",
+                           "name" : x['name']}
                            for _, x in pp.get_catalog_db_pg().iterrows()]
     CATALOG_TOR["TORRENT"] = pd.DataFrame(CATALOG_TOR['TORRENT']).drop_duplicates(subset=['id']).to_dict(orient='records')
     
