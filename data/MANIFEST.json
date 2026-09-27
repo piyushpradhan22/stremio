@@ -64,31 +64,9 @@
             ]
         },
         {
-            "name": "Disney Plus Hotstar",
-            "type": "Indian",
-            "id": "Disney Plus Hotstar",
-            "extra": [
-                {
-                    "name": "skip",
-                    "isRequired": false
-                }
-            ]
-        },
-        {
             "name": "Jio Hotstar",
             "type": "Indian",
             "id": "Jio Hotstar",
-            "extra": [
-                {
-                    "name": "skip",
-                    "isRequired": false
-                }
-            ]
-        },
-        {
-            "name": "Jio Cinema",
-            "type": "Indian",
-            "id": "Jio Cinema",
             "extra": [
                 {
                     "name": "skip",
