@@ -355,7 +355,7 @@ class pradhanStreams:
     ###### Check Existing downloads
     ### Get imdb from db
     def get_catalog_db_pg(self):
-        df = pd.read_sql("Select distinct imdb_id, time from hftor order by time desc", con=self.postgres_engine)
+        df = pd.read_sql("Select distinct imdb_id, name, time from hftor order by time desc", con=self.postgres_engine)
         return df
     
     def get_tor_stream_db_pg(self, imdb_id):
