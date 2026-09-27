@@ -3,7 +3,7 @@ PikPakAPI
 quart
 pandas
 SQLAlchemy
-psycopg2-binary
+psycopg[binary]
 gunicorn
 uvicorn[standard]
 gevent
