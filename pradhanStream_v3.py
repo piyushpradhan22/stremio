@@ -20,12 +20,45 @@ class pradhanStreams:
         self.device_id = None
         self.login_time = 0
         self.pikpak_clients = None
+
+        self.webshare_api_key = os.getenv('webshare_api_key') or os.getenv('WEBSHARE_API_KEY')
+        self.use_proxy = os.getenv('use_proxy', 'False').lower() in ('true', '1', 't')
+        self.proxies = []
+        if self.use_proxy:
+            self.init_proxies()
+
+    def init_proxies(self):
+        if not self.webshare_api_key:
+            print("Warning: use_proxy is True but webshare_api_key is not set in environment.")
+            return
+        try:
+            url = "https://proxy.webshare.io/api/v2/proxy/list/?mode=direct&page=1&page_size=25"
+            headers = {"Authorization": f"Token {self.webshare_api_key}"}
+            r = requests.get(url, headers=headers, timeout=10)
+            if r.status_code == 200:
+                data = r.json()
+                results = data.get("results", [])
+                self.proxies = [
+                    f"http://{p['username']}:{p['password']}@{p['proxy_address']}:{p['port']}"
+                    for p in results if p.get("valid", True)
+                ]
+                print(f"Initialized {len(self.proxies)} Webshare proxies.")
+            else:
+                print(f"Failed to fetch Webshare proxies: {r.status_code} - {r.text}")
+        except Exception as e:
+            print(f"Error fetching Webshare proxies: {e}")
     
     def get_torrents(self,imdb_id, type):
         url = f"https://torrentio.strem.fun/language=hindi|qualityfilter=480p,other,scr,cam,unknown|sizefilter=6GB/stream/{type}/{imdb_id}.json"
         #url = f"https://torrentio.strem.fun/stream/{type}/{imdb_id}.json"
         #print(url, self.get_response(url, waitTimeGet=2).text)
-        torrs =  self.get_response(url, waitTimeGet=2).json()['streams']
+        resp = self.get_response(url, waitTimeGet=6)
+        if not resp:
+            return []
+        try:
+            torrs = resp.json().get('streams', [])
+        except Exception:
+            return []
         collection_keywords = ['complete', 'collection', 'pack','moviesup']
         torrents = []
         torr_lower = []
@@ -61,8 +94,14 @@ class pradhanStreams:
         torr_flattened = []
         
         with futures.ThreadPoolExecutor(max_workers=4) as executor:
-            torrs =  list(executor.map(self.get_response, urls))
-        torr_flattened.extend([x.json()['streams'] for x in torrs])
+            torrs = list(executor.map(self.get_response, urls))
+        
+        for x in torrs:
+            if x is not None and x.status_code == 200:
+                try:
+                    torr_flattened.extend(x.json().get('streams', []))
+                except Exception:
+                    pass
         torr_flattened = [j for sub in torr_flattened for j in sub]
         
         if len(torr_flattened) == 0:
@@ -83,7 +122,14 @@ class pradhanStreams:
         
         torrents = []
         
-        for x in torrs[episode-1].json()['streams']:
+        episode_torrs = []
+        if episode - 1 < len(torrs) and torrs[episode-1] is not None and torrs[episode-1].status_code == 200:
+            try:
+                episode_torrs = torrs[episode-1].json().get('streams', [])
+            except Exception:
+                episode_torrs = []
+
+        for x in episode_torrs:
             if len(df[df.index == x['infoHash']]) == 0:
                 continue
             size = df[df.index == x['infoHash']].values[0][0]
@@ -96,8 +142,16 @@ class pradhanStreams:
         url = "https://whatslink.info/api/v1/link?url=magnet:?xt=urn:btih:{}"
         urls = [url.format(x['infoHash']) for x in torrents]
         with futures.ThreadPoolExecutor(max_workers=4) as executor:
-            sizes =  list(executor.map(self.get_response, urls))
-        sizes = [int(x.json()['size']/(1024**2)) for x in sizes]
+            sizes_resp = list(executor.map(self.get_response, urls))
+        sizes = []
+        for x in sizes_resp:
+            try:
+                if x is not None and x.status_code == 200:
+                    sizes.append(int(x.json().get('size', 0) / (1024**2)))
+                else:
+                    sizes.append(0)
+            except Exception:
+                sizes.append(0)
     
         for i in range(len(sizes)):
             if sizes[i] == 0:
@@ -128,13 +182,31 @@ class pradhanStreams:
         
         return headers
     
-    def get_response(self,url, wait_time=10, waitTimeGet=2):
+    def get_response(self, url, wait_time=5, waitTimeGet=6):
         response = None
-        for i in range(wait_time):
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*'
+        }
+
+        proxy_pool = []
+        if self.use_proxy and self.proxies:
+            proxy_pool = self.proxies.copy()
+            random.shuffle(proxy_pool)
+
+        attempts = max(wait_time, len(proxy_pool)) if proxy_pool else wait_time
+
+        for i in range(attempts):
             try:
-                response = requests.get(url,timeout=waitTimeGet, headers={"User-Agent" : 'PostmanRuntime/7.42.0'})
-                break
-            except Exception as e:
+                proxies_dict = None
+                if self.use_proxy and proxy_pool:
+                    p = proxy_pool[i % len(proxy_pool)]
+                    proxies_dict = {'http': p, 'https': p}
+
+                response = requests.get(url, headers=headers, proxies=proxies_dict, timeout=waitTimeGet)
+                if response.status_code == 200:
+                    return response
+            except Exception:
                 pass
         return response
     
