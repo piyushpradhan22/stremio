@@ -1,0 +1,23 @@
+{
+    "id": "org.stremio.qb",
+    "version": "1.0.0",
+    "name": "\u26a1QB",
+    "description": "Sequential qBittorrent & WebDAV Streaming Engine",
+    "types": [
+        "movie",
+        "series"
+    ],
+    "catalogs": [],
+    "resources": [
+        {
+            "name": "stream",
+            "types": [
+                "movie",
+                "series"
+            ],
+            "idPrefixes": [
+                "tt"
+            ]
+        }
+    ]
+}

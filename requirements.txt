@@ -10,3 +10,4 @@ gevent
 parse-torrent-name
 PyMovieDb
 lxml[html_clean]
+qbittorrent-api
