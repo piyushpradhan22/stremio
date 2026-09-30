@@ -135,23 +135,39 @@ class QBWebDAVEngine:
         if not files:
             raise RuntimeError(f"Timeout waiting for torrent metadata for {info_hash}")
 
-        # Determine target file
+        # Determine target file (using filename_hint from Torrentio or fileIdx)
         target_file = None
-        if file_idx is not None and 0 <= file_idx < len(files):
-            target_file = files[file_idx]
-        elif filename_hint:
-            clean_hint = os.path.basename(filename_hint).lower()
+
+        # 1. Match by filename_hint from Torrentio (most accurate for series & multi-file torrents)
+        if filename_hint:
+            clean_hint = os.path.basename(filename_hint).strip().lower()
+            # Remove extension for more flexible matching
+            hint_stem = os.path.splitext(clean_hint)[0]
             for f in files:
-                if clean_hint in f.name.lower():
+                f_base = os.path.basename(f.name).lower()
+                if clean_hint == f_base or hint_stem in f_base or f_base in clean_hint:
                     target_file = f
+                    print(f"[QBWebDAVEngine] Matched file by filename hint: {f.name}")
                     break
 
+        # 2. Match by file_idx if provided
+        if not target_file and file_idx is not None:
+            for f in files:
+                if getattr(f, 'index', None) == file_idx:
+                    target_file = f
+                    print(f"[QBWebDAVEngine] Matched file by index {file_idx}: {f.name}")
+                    break
+            if not target_file and 0 <= file_idx < len(files):
+                target_file = files[file_idx]
+
+        # 3. Fallback to largest video file
         if not target_file:
             video_files = [f for f in files if f.name.lower().endswith(VIDEO_EXTS)]
             if video_files:
                 target_file = max(video_files, key=lambda x: x.size)
             else:
                 target_file = max(files, key=lambda x: x.size)
+            print(f"[QBWebDAVEngine] Fallback to largest video file: {target_file.name}")
 
         # Set target file priority to maximum (7)
         try:
@@ -262,6 +278,11 @@ class QBWebDAVEngine:
             title = torr.get('title', '')
             behavior_hints = torr.get('behaviorHints', {})
             filename = behavior_hints.get('filename', '')
+            if not filename and title:
+                # Torrentio puts release/file name as the first line of title
+                first_line = title.split('\n')[0].strip()
+                if any(ext in first_line.lower() for ext in VIDEO_EXTS) or '.' in first_line:
+                    filename = first_line
             file_idx = torr.get('fileIdx')
 
             display_title = title if title else filename
