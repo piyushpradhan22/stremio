@@ -191,7 +191,7 @@ async def addon_stream_qb(type, id):
 async def addon_playback(info_hash):
     file_idx = request.args.get('fileIdx', type=int)
     title = request.args.get('title', '')
-    use_proxy = request.args.get('proxy', '0') == '1'
+    do_redirect = request.args.get('redirect', '0') == '1'
 
     try:
         prep = await qb_engine.add_and_prepare_torrent(
@@ -199,13 +199,13 @@ async def addon_playback(info_hash):
             file_idx=file_idx,
             filename_hint=title
         )
-        if use_proxy:
-            return await qb_engine.proxy_stream(prep['clean_url'], dict(request.headers))
+        if do_redirect:
+            resp = redirect(prep['direct_url'], code=302)
+            resp.headers['Access-Control-Allow-Origin'] = '*'
+            resp.headers['Access-Control-Allow-Headers'] = '*'
+            return resp
 
-        resp = redirect(prep['direct_url'], code=302)
-        resp.headers['Access-Control-Allow-Origin'] = '*'
-        resp.headers['Access-Control-Allow-Headers'] = '*'
-        return resp
+        return await qb_engine.proxy_stream(prep['clean_url'], dict(request.headers))
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500

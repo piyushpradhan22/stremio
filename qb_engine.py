@@ -100,7 +100,7 @@ class QBWebDAVEngine:
             print(f"[QBWebDAVEngine] Adding torrent {info_hash} to qBittorrent...")
             client.torrents_add(
                 urls=magnet,
-                category="MediaFusion",  # Protected from copy_tor_v4 auto-deletion
+                category="MediaFusion",  # Protected from auto-deletion
                 is_sequential_download=True,
                 is_first_last_piece_priority=True,
                 is_auto_torrent_management=False,
@@ -117,28 +117,20 @@ class QBWebDAVEngine:
                     pass
             if not getattr(tor, 'f_l_piece_prio', False):
                 try:
-                    client.torrents_toggle_first_last_piece_prio(torrent_hashes=info_hash)
+                    client.torrents_toggle_first_last_piece_priority(torrent_hashes=info_hash)
                 except Exception:
                     pass
 
-        # Poll for metadata & file list (up to 15 seconds)
+        # Poll for metadata & file list (up to 40 seconds)
         files = []
-        for _ in range(30):
-            tors = client.torrents_info(torrent_hashes=info_hash)
-            if tors and getattr(tors[0], 'has_metadata', False):
-                try:
-                    files = client.torrents_files(torrent_hash=info_hash)
-                    if files:
-                        break
-                except Exception:
-                    pass
-            await asyncio.sleep(0.5)
-
-        if not files:
+        for _ in range(40):
             try:
                 files = client.torrents_files(torrent_hash=info_hash)
+                if files:
+                    break
             except Exception:
                 pass
+            await asyncio.sleep(1.0)
 
         if not files:
             raise RuntimeError(f"Timeout waiting for torrent metadata for {info_hash}")
@@ -171,23 +163,36 @@ class QBWebDAVEngine:
         except Exception as e:
             print(f"[QBWebDAVEngine] Priority set error: {e}")
 
-        # Ensure sequential download
+        # Ensure sequential download and first/last piece priority are enabled
         try:
-            client.torrents_toggle_sequential_download(torrent_hashes=info_hash)
+            tors = client.torrents_info(torrent_hashes=info_hash)
+            if tors:
+                tor = tors[0]
+                if not getattr(tor, 'seq_dl', False):
+                    client.torrents_toggle_sequential_download(torrent_hashes=info_hash)
+                if not getattr(tor, 'f_l_piece_prio', False):
+                    client.torrents_toggle_first_last_piece_priority(torrent_hashes=info_hash)
         except Exception:
             pass
 
-        # Wait briefly for initial buffer (piece 0)
-        for _ in range(16):
+        # Wait for initial buffer: verify start piece of target file is downloaded
+        start_piece = 0
+        if hasattr(target_file, 'piece_range') and target_file.piece_range:
+            start_piece = target_file.piece_range[0]
+
+        for _ in range(60):
             try:
                 tors = client.torrents_info(torrent_hashes=info_hash)
                 if not tors:
                     break
                 tor = tors[0]
-                piece_states = client.torrents_piece_states(torrent_hash=info_hash)
-                if (piece_states and piece_states[0] == 2) or tor.downloaded > 2 * 1024 * 1024 or tor.progress == 1.0:
-                    print(f"[QBWebDAVEngine] Buffer ready for {target_file.name}")
+                if tor.progress == 1.0:
                     break
+                piece_states = client.torrents_piece_states(torrent_hash=info_hash)
+                if piece_states and len(piece_states) > start_piece:
+                    if piece_states[start_piece] == 2:
+                        print(f"[QBWebDAVEngine] Buffer ready (piece {start_piece} downloaded) for {target_file.name}")
+                        break
             except Exception:
                 pass
             await asyncio.sleep(0.5)
@@ -233,6 +238,9 @@ class QBWebDAVEngine:
             val = r.headers.get(h)
             if val:
                 resp_headers[h] = val
+
+        # Ensure inline playback rather than attachment download
+        resp_headers['Content-Disposition'] = 'inline'
         resp_headers['Access-Control-Allow-Origin'] = '*'
         resp_headers['Access-Control-Allow-Headers'] = '*'
 
