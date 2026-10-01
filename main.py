@@ -186,26 +186,22 @@ async def addon_stream_qb(type, id):
     return respond_with({"streams": streams})
 
 # Playback & Range Proxy Handlers
-@app.route('/playback/<info_hash>')
-@app.route('/qb/playback/<info_hash>')
+@app.route('/playback/<info_hash>', methods=['GET', 'HEAD'])
+@app.route('/qb/playback/<info_hash>', methods=['GET', 'HEAD'])
 async def addon_playback(info_hash):
     file_idx = request.args.get('fileIdx', type=int)
     title = request.args.get('title', '')
+    sources = request.args.getlist('tr')
     do_redirect = request.args.get('redirect', '0') == '1'
 
     try:
         prep = await qb_engine.add_and_prepare_torrent(
             info_hash,
             file_idx=file_idx,
-            filename_hint=title
+            filename_hint=title,
+            sources=sources,
         )
-        if do_redirect:
-            resp = redirect(prep['direct_url'], code=302)
-            resp.headers['Access-Control-Allow-Origin'] = '*'
-            resp.headers['Access-Control-Allow-Headers'] = '*'
-            return resp
-
-        return await qb_engine.proxy_stream(prep['clean_url'], dict(request.headers))
+        return await qb_engine.proxy_stream(prep, dict(request.headers), method=request.method)
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
@@ -215,16 +211,28 @@ async def addon_playback(info_hash):
 async def addon_proxy(info_hash):
     file_idx = request.args.get('fileIdx', type=int)
     title = request.args.get('title', '')
+    sources = request.args.getlist('tr')
     try:
         prep = await qb_engine.add_and_prepare_torrent(
             info_hash,
             file_idx=file_idx,
-            filename_hint=title
+            filename_hint=title,
+            sources=sources,
         )
-        return await qb_engine.proxy_stream(prep['clean_url'], dict(request.headers))
+        resp = redirect(prep['direct_url'], code=302)
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        resp.headers['Access-Control-Allow-Headers'] = '*'
+        return resp
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/is_active/<info_hash>")
+async def api_is_active(info_hash):
+    active = qb_engine.is_active(info_hash, max_idle=180.0)
+    idle = qb_engine.get_idle_seconds(info_hash)
+    return jsonify({"active": active, "idle_seconds": idle, "info_hash": info_hash})
 
 if __name__ == '__main__':
     import uvicorn
