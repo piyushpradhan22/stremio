@@ -513,7 +513,7 @@ class QBWebDAVEngine:
             name = torr.get('name', 'Torrentio')
             lines = [l.strip() for l in name.split('\n') if l.strip()]
             quality = lines[-1] if len(lines) > 1 else lines[0]
-            stream_name = f'⚡ [qB] {quality}'
+            stream_name = f'[QB] {quality}'
 
             title = torr.get('title', '')
             behavior_hints = torr.get('behaviorHints', {})
@@ -525,7 +525,6 @@ class QBWebDAVEngine:
             file_idx = torr.get('fileIdx')
 
             display_title = title if title else filename
-            display_title += '\n⚡ Instant Play & Seek via Hybrid Engine'
 
             params = []
             if file_idx is not None:

@@ -169,7 +169,7 @@ async def addon_stream_tor(type, id):
 # ==========================================
 @app.route("/qb/manifest.json")
 def addon_manifest_qb():
-    MANIFEST_QB['name'] = "⚡QB"
+    MANIFEST_QB['name'] = "QB"
     return respond_with(MANIFEST_QB)
 
 @app.route('/qb/stream/<type>/<id>.json')
@@ -177,7 +177,7 @@ async def addon_stream_qb(type, id):
     if type not in MANIFEST_QB['types']:
         abort(404)
 
-    torrents = pp.get_torrents(id, type) if type == 'movie' else pp.get_series_torrents(id)
+    torrents = pp.get_qb_torrents(id, type) if type == 'movie' else pp.get_series_torrents(id)
     if not torrents:
         return respond_with({"streams": []})
 

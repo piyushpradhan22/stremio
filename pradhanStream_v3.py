@@ -83,6 +83,18 @@ class pradhanStreams:
         torrents.extend(torr_lower)
 
         return torrents
+
+    def get_qb_torrents(self, imdb_id, type):
+        url = f"https://torrentio.strem.fun/providers=yts,eztv,rarbg,1337x,ext,thepiratebay,kickasstorrents,torrentgalaxy|language=hindi|qualityfilter=cam,unknown,scr,threed|limit=4/stream/{type}/{imdb_id}.json"
+        resp = self.get_response(url, waitTimeGet=6)
+        if not resp:
+            return []
+        try:
+            torrs = resp.json().get('streams', [])
+        except Exception:
+            return []
+
+        return torrs
     
     def get_series_torrents(self, imdb_id, max_episode_no=20):
         url = "https://torrentio.strem.fun/language=hindi|qualityfilter=480p,other,scr,cam,unknown|sizefilter=6GB/stream/series/{}.json"
