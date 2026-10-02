@@ -384,78 +384,128 @@ class QBWebDAVEngine:
         # Check if the requested start piece is already downloaded on disk by qBittorrent
         torrent_byte = file_start_byte + start_byte
         p_idx = int(torrent_byte // piece_size)
+        start_piece = prep.get('start_piece', 0)
+        end_piece = prep.get('end_piece', 0)
 
+        serve_mode = os.getenv('SERVE_MODE', 'qb').lower()
         is_downloaded_on_disk = False
-        try:
-            qb = self.get_client()
-            if qb:
-                states = qb.torrents_piece_states(torrent_hash=info_hash)
-                if states and p_idx < len(states) and states[p_idx] == 2:
-                    is_downloaded_on_disk = True
-        except Exception:
-            pass
+
+        if serve_mode != 'torr':
+            try:
+                qb = self.get_client()
+                if qb:
+                    states = qb.torrents_piece_states(torrent_hash=info_hash)
+                    if states and p_idx < len(states):
+                        if states[p_idx] == 2:
+                            is_downloaded_on_disk = True
+                        else:
+                            # Optimization: Wait for qB if it's already downloading, prioritized, or near sequential playback
+                            is_active_or_prio = (states[p_idx] == 1) or (abs(p_idx - start_piece) <= 2) or (abs(p_idx - end_piece) <= 2)
+                            is_sequential_next = False
+                            if not is_active_or_prio:
+                                for i in range(max(0, p_idx - 3), p_idx):
+                                    if states[i] in (1, 2):
+                                        is_sequential_next = True
+                                        break
+
+                            should_wait = (serve_mode == 'qb') or is_active_or_prio or is_sequential_next
+
+                            if should_wait:
+                                log(f"PROXY: Waiting for piece {p_idx} (state={states[p_idx]}) in qB...")
+                                max_wait = 15 if serve_mode == 'hybrid' else 45
+                                for _ in range(max_wait):
+                                    await asyncio.sleep(1.0)
+                                    states = qb.torrents_piece_states(torrent_hash=info_hash)
+                                    if states and states[p_idx] == 2:
+                                        is_downloaded_on_disk = True
+                                        log(f"PROXY: Piece {p_idx} is ready in qB!")
+                                        break
+            except Exception as e:
+                log(f"PROXY: piece state check error: {e}")
 
         # Target WebDAV URL for local disk read
         webdav_target = clean_url
         if self.webdav_url in clean_url:
             webdav_target = clean_url.replace(self.webdav_url, 'http://172.17.0.1:5244/dav')
 
-        # -------------------------------------------------------------
-        # CASE A: Piece is already on disk -> Serve directly from WebDAV
-        # -------------------------------------------------------------
-        if is_downloaded_on_disk:
-            log(f'PROXY [DISK]: Piece {p_idx} already on disk -> streaming via WebDAV')
-            async def disk_generator():
-                client = httpx.AsyncClient(
-                    auth=(self.webdav_user, self.webdav_pass),
-                    timeout=httpx.Timeout(connect=15.0, read=60.0, write=15.0, pool=None)
-                )
-                try:
-                    sub_headers = {'Range': f'bytes={start_byte}-{end_byte}'}
-                    async with client.stream('GET', webdav_target, headers=sub_headers) as sub_resp:
-                        if sub_resp.status_code in (200, 206):
-                            async for b in sub_resp.aiter_bytes(chunk_size=128 * 1024):
-                                self.mark_active(info_hash)
-                                yield b
-                        else:
-                            log(f'PROXY [DISK]: WebDAV returned {sub_resp.status_code}')
-                except asyncio.CancelledError:
-                    pass
-                except Exception as e:
-                    log(f'PROXY [DISK]: Stream error: {e}')
-                finally:
-                    await client.aclose()
-
-            return Response(disk_generator(), status=status, headers=resp_headers)
-
-        # ----------------------------------------------------------------------
-        # CASE B: Piece NOT yet on disk -> Use TorrServer Seek Booster (RAM-only)
-        # ----------------------------------------------------------------------
-        log(f'PROXY [BOOSTER]: Piece {p_idx} not yet on disk -> streaming on-demand via TorrServer')
-        async def booster_generator():
+        async def unified_hybrid_generator():
+            current_offset = start_byte
             client = httpx.AsyncClient(
-                timeout=httpx.Timeout(connect=15.0, read=None, write=15.0, pool=None)
+                auth=(self.webdav_user, self.webdav_pass),
+                timeout=httpx.Timeout(connect=15.0, read=60.0, write=15.0, pool=None)
             )
+
             try:
-                sub_headers = {}
-                if range_val:
-                    sub_headers['Range'] = range_val
-                req = client.build_request('GET', ts_stream_url, headers=sub_headers)
-                upstream = await client.send(req, stream=True)
-                if upstream.status_code in (200, 206):
-                    async for chunk in upstream.aiter_bytes(chunk_size=128 * 1024):
-                        self.mark_active(info_hash)
-                        yield chunk
-                else:
-                    log(f'PROXY [BOOSTER]: TorrServer returned {upstream.status_code}')
+                while current_offset <= end_byte:
+                    p_idx = int((file_start_byte + current_offset) // piece_size)
+
+                    is_on_disk = False
+                    contiguous_disk_pieces = 0
+
+                    if serve_mode in ('hybrid', 'qb'):
+                        try:
+                            qb = self.get_client()
+                            if qb:
+                                states = qb.torrents_piece_states(torrent_hash=info_hash)
+                                if states and p_idx < len(states) and states[p_idx] == 2:
+                                    is_on_disk = True
+                                    # Count how many contiguous pieces are ready on disk
+                                    while p_idx + contiguous_disk_pieces < len(states) and states[p_idx + contiguous_disk_pieces] == 2:
+                                        contiguous_disk_pieces += 1
+                        except Exception:
+                            pass
+
+                    target_source = 'booster' if serve_mode == 'torr' else 'disk'
+                    if serve_mode == 'hybrid':
+                        target_source = 'disk' if is_on_disk else 'booster'
+
+                    if target_source == 'disk':
+                        if not is_on_disk and serve_mode == 'qb':
+                            log(f'PROXY [WAIT]: Mode=qb, piece {p_idx} not ready. Waiting 2s...')
+                            await asyncio.sleep(2.0)
+                            continue
+
+                        # Stream up to the last contiguous piece available on disk to avoid reading zeroes
+                        safe_end = ((p_idx + contiguous_disk_pieces) * piece_size) - file_start_byte - 1
+                    elif serve_mode == 'hybrid':
+                        # Stop at the next piece boundary so we can check if qB has caught up
+                        safe_end = ((p_idx + 1) * piece_size) - file_start_byte - 1
+                    else:
+                        # Pure torr mode, stream to end of file
+                        safe_end = end_byte
+
+                    safe_end_byte = min(end_byte, safe_end)
+                    if safe_end_byte < current_offset:
+                        safe_end_byte = end_byte
+
+                    url = webdav_target if target_source == 'disk' else ts_stream_url
+                    sub_headers = {'Range': f'bytes={current_offset}-{safe_end_byte}'}
+
+                    log(f'PROXY [STREAM]: offset {current_offset}/{end_byte} | src={target_source} | chunk={safe_end_byte-current_offset+1}b')
+
+                    req = client.build_request('GET', url, headers=sub_headers)
+                    upstream = await client.send(req, stream=True)
+                    try:
+                        if upstream.status_code not in (200, 206):
+                            log(f'PROXY [ERROR]: {target_source} returned {upstream.status_code}. Retrying in 1s...')
+                            await asyncio.sleep(1.0)
+                            continue
+
+                        async for chunk in upstream.aiter_bytes(chunk_size=128 * 1024):
+                            yield chunk
+                            self.mark_active(info_hash)
+                            current_offset += len(chunk)
+                    finally:
+                        await upstream.aclose()
+
             except asyncio.CancelledError:
                 pass
             except Exception as e:
-                log(f'PROXY [BOOSTER]: Stream error: {e}')
+                log(f'PROXY [ERROR]: Unified stream error: {e}')
             finally:
                 await client.aclose()
 
-        return Response(booster_generator(), status=status, headers=resp_headers)
+        return Response(unified_hybrid_generator(), status=status, headers=resp_headers)
 
     async def _proxy_direct_webdav(self, clean_url: str, request_headers: dict, method: str = 'GET'):
         range_val = request_headers.get('range') or request_headers.get('Range')
